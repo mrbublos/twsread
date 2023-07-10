@@ -1,9 +1,16 @@
 import com.ib.client.*
+import com.ib.contracts.OptContract
 import com.ib.controller.ApiController
+import ext.getBars
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Semaphore
 
 fun main(args: Array<String>) {
     val apiController = ApiController(ConnectionHandler())
+
+    apiController.connect("127.0.0.1", 7496, 1, null)
 
     val semaphore = Semaphore(1)
     var symbols: Array<ContractDescription>? = null;
@@ -11,35 +18,21 @@ fun main(args: Array<String>) {
     semaphore.acquire()
     println("Requesting symbol")
     apiController.reqMatchingSymbols(
-        "VIX"
+        "VOO"
     ) {
         symbols = it
         semaphore.release()
     }
 
     semaphore.acquire()
-    println("requesting trades")
+
     val contract = symbols?.first()?.contract()
-    var data = mutableListOf<HistoricalTickLast>()
-    apiController.reqHistoricalTicks(contract, "20220808 10:00:00 US/Eastern", null, 10, "TRADES", 1, true, object :
-        ApiController.IHistoricalTickHandler {
-        override fun historicalTick(reqId: Int, ticks: MutableList<HistoricalTick>?) {
-            println("Tick " + ticks)
-        }
+    contract?.exchange("SMART")
 
-        override fun historicalTickBidAsk(reqId: Int, ticks: MutableList<HistoricalTickBidAsk>?) {
-            println("Tick bid ask " + ticks)
-        }
-
-        override fun historicalTickLast(reqId: Int, ticks: MutableList<HistoricalTickLast>?) {
-            data.addAll(ticks ?: listOf())
-            semaphore.release()
-        }
-
-    })
-
-    semaphore.acquire()
-    semaphore.acquire()
+    println("requesting historical data")
+    val bars = contract?.getBars(apiController, ZonedDateTime.now().minusYears(2))
 
     apiController.disconnect()
 }
+
+
